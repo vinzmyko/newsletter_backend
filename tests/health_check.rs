@@ -30,6 +30,28 @@ async fn spawn_app() -> TestApp {
     }
 }
 
+pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
+    // Connect to PostgreSQL
+    let mut connection = PgConnection::connect(&config.connection_string_without_db())
+        .await // Wait for Postgres connect to database
+        .expect("Failed to connect to Postgres.");
+    // Create a new database
+    connection
+        .execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
+        .await // Wait for Postgres to create database
+        .expect("Failed to create database.");
+
+    // Create a connection pool for the new database
+    let connection_pool = PgPool::connect(&config.connection_string())
+        .await
+        .expect("Failed to connect to Postgres.");
+    sqlx::migrate!("./migrations") // Apply database schema to new database
+        .run(&connection_pool)
+        .await
+        .expect("Failed to migrate the database.");
+
+    connection_pool
+}
 
 #[tokio::test]
 async fn health_check_works() {
