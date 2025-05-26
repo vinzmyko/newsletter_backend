@@ -1,7 +1,7 @@
 application:
   port: 8000
 database:
-  host: "localhost"
+  host: "172.17.0.1"
   port: 5432
   username: "postgres"
   password: "password"
