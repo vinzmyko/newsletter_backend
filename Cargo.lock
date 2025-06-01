@@ -1430,6 +1430,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ordered-float"
+version = "2.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68f19d67e5a2795c94e73e0bb1cc1a7edeb2e28efd39e2e1c9b7a40c1108b11c"
+dependencies = [
+ "num-traits 0.2.19",
+]
+
+[[package]]
 name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1920,6 +1929,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde-aux"
+version = "4.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "207f67b28fe90fb596503a9bf0bf1ea5e831e21307658e177c5dfcdfc3ab8a0a"
+dependencies = [
+ "chrono",
+ "serde 1.0.219",
+ "serde-value",
+ "serde_json",
+]
+
+[[package]]
 name = "serde-hjson"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1929,6 +1950,16 @@ dependencies = [
  "num-traits 0.1.43",
  "regex",
  "serde 0.8.23",
+]
+
+[[package]]
+name = "serde-value"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3a1a3341211875ef120e117ea7fd5228530ae7e7036a779fdc9117be6b3282c"
+dependencies = [
+ "ordered-float",
+ "serde 1.0.219",
 ]
 
 [[package]]
@@ -3106,6 +3137,7 @@ dependencies = [
  "reqwest",
  "secrecy",
  "serde 1.0.219",
+ "serde-aux",
  "sqlx",
  "tokio",
  "tracing",
