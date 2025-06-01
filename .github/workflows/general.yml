@@ -63,30 +63,39 @@ jobs:
 
       - name: Create app user in Postgres
         run: |
-          sudo apt-get install postgresql-client
+          sudo apt-get update && sudo apt-get install -y postgresql-client
 
           # Create the application user
-          CREATE_QUERY="CREATE USER ${APP_USER} WITH PASSWORD '${APP_USER_PWD}';"
-          PGPASSWORD="password" psql -U "postgres" -h "localhost" -c "${CREATE_QUERY}"
+          CREATE_QUERY="CREATE USER ${{ env.APP_USER }} WITH PASSWORD '${{ env.APP_USER_PWD }}';"
+          PGPASSWORD="password" psql -U "postgres" -h "localhost" -p "5432" -c "${CREATE_QUERY}"
 
           # Grant create db privileges to the app user
-          GRANT_QUERY="ALTER USER ${APP_USER} CREATEDB;"
-          PGPASSWORD="password" psql -U "postgres" -h "localhost" -c "${GRANT_QUERY}"
+          GRANT_QUERY="ALTER USER ${{ env.APP_USER }} CREATEDB;"
+          PGPASSWORD="password" psql -U "postgres" -h "localhost" -p "5432" -c "${GRANT_QUERY}"
+
+          # Also grant connect and usage on the main 'newsletter' DB if tests connect as APP_USER to it
+          GRANT_CONNECT_QUERY="GRANT CONNECT ON DATABASE ${{ env.APP_DB_NAME }} TO ${{ env.APP_USER }};"
+          PGPASSWORD="password" psql -U "postgres" -h "localhost" -p "5432" -d "${{ env.APP_DB_NAME }}" -c "${GRANT_CONNECT_QUERY}" || echo "DB ${{ env.APP_DB_NAME }} may not exist yet for grant, this is fine if init_db creates it."
 
       - name: Migrate database
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
-          POSTGRES_DB: postgres
-          DATABASE_URL: "postgres://postgres:password@localhost:${{ services.postgres.ports['5432'] }}/${{ env.APP_DB_NAME }}"
+          POSTGRES_DB: ${{ env.APP_DB_NAME }}
+          DATABASE_URL: "postgres://postgres:password@localhost:5432/${{ env.APP_DB_NAME }}"
         run: SKIP_DOCKER=true ./scripts/init_db.sh
 
       - name: Run tests
+        env:
+          APP_DATABASE__USERNAME: ${{ env.APP_USER }}
+          APP_DATABASE__PASSWORD: ${{ env.APP_USER_PWD }}
+          APP_DATABASE__HOST: "localhost"
+          APP_DATABASE__PORT: "5432"
         run: cargo test
       
       - name: Debug sqlx-data.json freshness
         env:
-          DATABASE_URL: "postgres://postgres:password@localhost:${{ services.postgres.ports['5432'] }}/${{ env.APP_DB_NAME }}"
+          DATABASE_URL: "postgres://postgres:password@localhost:5432/${{ env.APP_DB_NAME }}"
         run: |
           echo "--- Content of committed sqlx-data.json (from checkout) ---"
           cat sqlx-data.json
