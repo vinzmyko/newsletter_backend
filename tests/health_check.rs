@@ -1,5 +1,6 @@
 use once_cell::sync::Lazy;
-use sqlx::{Connection, Executor, PgConnection, PgPool};
+use secrecy::ExposeSecret;
+use sqlx::{Connection, Executor, PgConnection, PgPool, postgres::PgConnectOptions};
 use std::net::TcpListener;
 use uuid::Uuid;
 use zero_to_prod::{
@@ -49,8 +50,14 @@ async fn spawn_app() -> TestApp {
 }
 
 pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
+    let options_for_creating_db = PgConnectOptions::new()
+        .host(&config.host)
+        .username(&config.username)
+        .password(config.password.expose_secret())
+        .port(config.port)
+        .database("postgres");
     // Connect to PostgreSQL
-    let mut connection = PgConnection::connect_with(&config.without_db())
+    let mut connection = PgConnection::connect_with(&options_for_creating_db)
         .await
         .expect("Failed to connect to Postgres.");
     // Create a new database
@@ -60,7 +67,8 @@ pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
         .expect("Failed to create database.");
 
     // Create a connection pool for the new database
-    let connection_pool = PgPool::connect_with(config.with_db())
+    let connection_pool_options = config.with_db();
+    let connection_pool = PgPool::connect_with(connection_pool_options)
         .await
         .expect("Failed to connect to Postgres.");
     sqlx::migrate!("./migrations") // Apply database schema to new database
