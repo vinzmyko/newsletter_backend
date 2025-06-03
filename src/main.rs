@@ -13,13 +13,26 @@ async fn main() -> std::io::Result<()> {
     init_subscriber(subscriber);
 
     let configuration = get_configuration().expect("Failed to read configuration");
-    let connection_pool = PgPoolOptions::new()
-        .acquire_timeout(std::time::Duration::from_secs(2))
-        .connect_lazy_with(configuration.database.with_db());
-    let address = format!(
-        "{}:{}",
-        configuration.application.host, configuration.application.port
-    );
+    let connection_pool = if let Ok(database_url) = std::env::var("DATABASE_URL") {
+        PgPoolOptions::new()
+            .acquire_timeout(std::time::Duration::from_secs(2))
+            .connect(&database_url)
+            .await
+            .expect("Failed to connect to Postgres")
+    } else {
+        PgPoolOptions::new()
+            .acquire_timeout(std::time::Duration::from_secs(2))
+            .connect_lazy_with(configuration.database.with_db())
+    };
+    sqlx::migrate!("./migrations")
+        .run(&connection_pool)
+        .await
+        .expect("Failed to run migrations");
+    let port = std::env::var("PORT")
+        .unwrap_or_else(|_| configuration.application.port.to_string())
+        .parse::<u16>()
+        .expect("Failed to parse PORT");
+    let address = format!("{}:{}", configuration.application.host, port);
     let listener = TcpListener::bind(address).expect("Failed to bind to random port");
 
     run(listener, connection_pool)?.await
