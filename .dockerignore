@@ -4,4 +4,3 @@ target/
 tests/
 Dockerfile
 scripts/
-migrations/
