@@ -2,6 +2,7 @@ use sqlx::postgres::PgPoolOptions;
 use std::net::TcpListener;
 use zero_to_prod::{
     configuration::get_configuration,
+    email_client::EmailClient,
     startup::run,
     telemetry::{get_subscriber, init_subscriber},
 };
@@ -24,6 +25,23 @@ async fn main() -> std::io::Result<()> {
             .acquire_timeout(std::time::Duration::from_secs(2))
             .connect_lazy_with(configuration.database.with_db())
     };
+
+    let sender_email = configuration
+        .email_client
+        .sender()
+        .expect("Invalid sender email address.");
+    let timeout = configuration.email_client.timeout();
+    let email_client = EmailClient::new(
+        configuration
+            .email_client
+            .base_url
+            .parse()
+            .expect("Invalid base URL in configuration."),
+        sender_email,
+        configuration.email_client.authorisation_token,
+        timeout,
+    );
+
     sqlx::migrate!("./migrations")
         .run(&connection_pool)
         .await
@@ -35,5 +53,7 @@ async fn main() -> std::io::Result<()> {
     let address = format!("{}:{}", configuration.application.host, port);
     let listener = TcpListener::bind(address).expect("Failed to bind to random port");
 
-    run(listener, connection_pool)?.await
+    run(listener, connection_pool, email_client)?.await?;
+
+    Ok(())
 }
