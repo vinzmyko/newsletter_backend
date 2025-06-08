@@ -1,12 +1,10 @@
 use once_cell::sync::Lazy;
 use secrecy::ExposeSecret;
 use sqlx::{Connection, Executor, PgConnection, PgPool, postgres::PgConnectOptions};
-use std::net::TcpListener;
 use uuid::Uuid;
 use zero_to_prod::{
     configuration::{DatabaseSettings, get_configuration},
-    email_client::EmailClient,
-    startup::run,
+    startup::{Application, get_connection_pool},
     telemetry::{get_subscriber, init_subscriber},
 };
 
@@ -33,37 +31,26 @@ pub struct TestApp {
 pub async fn spawn_app() -> TestApp {
     Lazy::force(&TRACING);
 
-    let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind to random port");
-    let port = listener.local_addr().unwrap().port();
-    let address = format!("http://127.0.0.1:{}", port);
+    // Modify configuration to ensure test isolation, no collisions
+    let configuration = {
+        let mut config = get_configuration().expect("Failed to read configuration.");
+        // Use a different database for each test case
+        config.database.database_name = Uuid::new_v4().to_string();
+        // Request a random OS-assigned port
+        config.application.port = 0;
+        config
+    };
 
-    let mut configuration = get_configuration().expect("Failed to read configuration.");
-    configuration.database.database_name = Uuid::new_v4().to_string();
-    let connection_pool = configure_database(&configuration.database).await;
-
-    let sender_email = configuration
-        .email_client
-        .sender()
-        .expect("Invalid sender email address.");
-    let timeout = configuration.email_client.timeout();
-    let email_client = EmailClient::new(
-        configuration
-            .email_client
-            .base_url
-            .parse()
-            .expect("Invalid base URL in configuration."),
-        sender_email,
-        configuration.email_client.authorisation_token,
-        timeout,
-    );
-
-    let server =
-        run(listener, connection_pool.clone(), email_client).expect("Failed to bind address");
-    let _ = tokio::spawn(server);
+    configure_database(&configuration.database).await;
+    let application = Application::build(configuration.clone())
+        .await
+        .expect("Failed to build application.");
+    let address = format!("http://127.0.0.1:{}", application.port());
+    let _ = tokio::spawn(application.run_until_stopped());
 
     TestApp {
         address,
-        db_pool: connection_pool,
+        db_pool: get_connection_pool(&configuration.database).await,
     }
 }
 
