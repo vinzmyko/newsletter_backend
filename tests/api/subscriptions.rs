@@ -1,4 +1,4 @@
-// If tests/api/subscriptions.rs grows too unwieldy -> tests/api/subscriptions/helper.rs 
+// If tests/api/subscriptions.rs grows too unwieldy -> tests/api/subscriptions/helper.rs
 use crate::helpers::spawn_app;
 
 #[tokio::test]
