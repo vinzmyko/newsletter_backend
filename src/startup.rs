@@ -14,9 +14,10 @@ pub struct Application {
 }
 
 impl Application {
-    pub async fn build(configuration: Settings) -> Result<Self, std::io::Error> {
-        let connection_pool = get_connection_pool(&configuration.database).await;
-
+    pub async fn build(
+        configuration: Settings,
+        connection_pool: PgPool,
+    ) -> Result<Self, std::io::Error> {
         let sender_email = configuration
             .email_client
             .sender()

@@ -4,7 +4,7 @@ use sqlx::{Connection, Executor, PgConnection, PgPool, postgres::PgConnectOption
 use uuid::Uuid;
 use zero_to_prod::{
     configuration::{DatabaseSettings, get_configuration},
-    startup::{Application, get_connection_pool},
+    startup::Application,
     telemetry::{get_subscriber, init_subscriber},
 };
 
@@ -53,17 +53,14 @@ pub async fn spawn_app() -> TestApp {
         config
     };
 
-    configure_database(&configuration.database).await;
-    let application = Application::build(configuration.clone())
+    let db_pool = configure_database(&configuration.database).await;
+    let application = Application::build(configuration.clone(), db_pool.clone())
         .await
         .expect("Failed to build application.");
     let address = format!("http://127.0.0.1:{}", application.port());
     let _ = tokio::spawn(application.run_until_stopped());
 
-    TestApp {
-        address,
-        db_pool: get_connection_pool(&configuration.database).await,
-    }
+    TestApp { address, db_pool }
 }
 
 async fn configure_database(config: &DatabaseSettings) -> PgPool {

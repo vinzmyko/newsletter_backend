@@ -1,6 +1,6 @@
 use zero_to_prod::{
     configuration::get_configuration,
-    startup::Application,
+    startup::{Application, get_connection_pool},
     telemetry::{get_subscriber, init_subscriber},
 };
 
@@ -11,8 +11,9 @@ async fn main() -> std::io::Result<()> {
     init_subscriber(subscriber);
 
     let configuration = get_configuration().expect("Failed to read configuration");
+    let connection_pool = get_connection_pool(&configuration.database).await;
 
-    let application = Application::build(configuration).await?;
+    let application = Application::build(configuration, connection_pool).await?;
     application.run_until_stopped().await?;
 
     Ok(())
