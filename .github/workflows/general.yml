@@ -73,9 +73,11 @@ jobs:
 
       # Run database migrations BEFORE any tests
       - name: Run Migrations
-        run: sqlx migrate run
-        env:
-          DATABASE_URL: "postgres://postgres:password@localhost:5432/${{ env.APP_DB_NAME }}"
+        run: |
+          # Explicitly set DATABASE_URL to prevent repository secret override
+          export DATABASE_URL="postgres://postgres:password@localhost:5432/${{ env.APP_DB_NAME }}"
+          echo "Running migrations against local CI database"
+          sqlx migrate run
 
       # Create app user after migrations (tests may need this user)
       - name: Create app user in Postgres
@@ -103,9 +105,11 @@ jobs:
       
       # Check sqlx metadata consistency
       - name: Check that queries are fresh
-        env:
-          DATABASE_URL: "postgres://postgres:password@localhost:5432/${{ env.APP_DB_NAME }}"
-        run: cargo sqlx prepare --check -- --workspace --all-targets
+        run: |
+          # Explicitly set DATABASE_URL inside the run script to prevent repository secret override
+          export DATABASE_URL="postgres://postgres:password@localhost:5432/${{ env.APP_DB_NAME }}"
+          echo "Checking sqlx metadata against local CI database at localhost:5432/${{ env.APP_DB_NAME }}"
+          cargo sqlx prepare --check -- --workspace --all-targets
 
   # `fmt` container job
   fmt:
@@ -179,9 +183,11 @@ jobs:
           PGPASSWORD: password
 
       - name: Run Migrations
-        run: sqlx migrate run
-        env:
-          DATABASE_URL: "postgres://postgres:password@localhost:5432/${{ env.APP_DB_NAME }}"
+        run: |
+          # Explicitly set DATABASE_URL to prevent repository secret override
+          export DATABASE_URL="postgres://postgres:password@localhost:5432/${{ env.APP_DB_NAME }}"
+          echo "Running migrations against local CI database"
+          sqlx migrate run
 
       - name: Create app user in Postgres
         run: |
@@ -196,7 +202,10 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+        run: |
+          # Ensure we're using local database for coverage generation
+          export DATABASE_URL="postgres://postgres:password@localhost:5432/${{ env.APP_DB_NAME }}"
+          cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
       - name: Generate report
         run: cargo llvm-cov report --html --output-dir coverage
       - uses: actions/upload-artifact@v4
