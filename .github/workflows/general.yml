@@ -85,19 +85,6 @@ jobs:
           DATABASE_URL: "postgres://postgres:password@localhost:5432/${{ env.APP_DB_NAME }}"
         run: SKIP_DOCKER=true ./scripts/init_db.sh
 
-      # ADD THIS NEW DEBUGGING STEP
-      - name: Debug DB Schema BEFORE sqlx check
-        env:
-          DATABASE_URL: "postgres://postgres:password@localhost:5432/${{ env.APP_DB_NAME }}"
-        run: |
-          echo "--- Verifying database schema before 'sqlx prepare --check' ---"
-          echo "Describing 'subscriptions' table..."
-          psql $DATABASE_URL -c "\d subscriptions"
-          echo "---"
-          echo "Checking applied migrations..."
-          psql $DATABASE_URL -c "SELECT * FROM _sqlx_migrations ORDER BY execution_checksum;"
-          echo "--- End Debug Info ---"
-
       - name: Run tests
         env:
           APP_DATABASE__USERNAME: ${{ env.APP_USER }}
