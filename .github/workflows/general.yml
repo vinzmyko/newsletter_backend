@@ -29,13 +29,13 @@ jobs:
     services:
       # Label used to access the service container
       postgres:
-        # Docker Hub image
+        # Docker Hub image - NOTE: Database is created automatically by service
         image: postgres:14
         # Environment variables scoped only for the `postgres` element
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
-          POSTGRES_DB: postgres
+          POSTGRES_DB: newsletter  # Creates the newsletter database automatically
         # When you map ports using the ports keyword, GitHub uses the --publish command to publish the container's ports to the Docker host
         # Opens tcp port 5432 on the host and service container
         ports:
@@ -43,16 +43,13 @@ jobs:
     steps:
       # Downloads a copy of the code in your repository before running CI tests
       - name: Check out repository code
-        # The uses keyword specifies that this step will run v4 of the actions/checkout action.
-        # This is an action that checks out your repository onto the runner, allowing you to run scripts or other actions against your code (such as build and test tools).
-        # You should use the checkout action any time your workflow will run against the repository's code.
         uses: actions/checkout@v4
 
-      # This GitHub Action installs a Rust toolchain using rustup. It is designed for one-line concise usage and good defaults.
-      # It also takes care of caching intermediate build artifacts.
+      # This GitHub Action installs a Rust toolchain using rustup
       - name: Install the Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
 
+      # Install sqlx-cli for running migrations
       - name: Install sqlx-cli
         run: |
           cargo install sqlx-cli \
@@ -61,10 +58,28 @@ jobs:
             --no-default-features \
             --locked
 
-      - name: Create app user in Postgres
+      # Wait for Postgres service to be ready before proceeding
+      - name: Wait for Postgres to be ready
         run: |
           sudo apt-get update && sudo apt-get install -y postgresql-client
+          # Use pg_isready to wait for the service to be available
+          until pg_isready -h localhost -p 5432 -U postgres; do
+            echo "Waiting for postgres..."
+            sleep 2
+          done
+          echo "Postgres is ready!"
+        env:
+          PGPASSWORD: password
 
+      # Run database migrations BEFORE any tests
+      - name: Run Migrations
+        run: sqlx migrate run
+        env:
+          DATABASE_URL: "postgres://postgres:password@localhost:5432/${{ env.APP_DB_NAME }}"
+
+      # Create app user after migrations (tests may need this user)
+      - name: Create app user in Postgres
+        run: |
           # Create the application user
           CREATE_QUERY="CREATE USER ${{ env.APP_USER }} WITH PASSWORD '${{ env.APP_USER_PWD }}';"
           PGPASSWORD="password" psql -U "postgres" -h "localhost" -p "5432" -c "${CREATE_QUERY}"
@@ -73,18 +88,11 @@ jobs:
           GRANT_QUERY="ALTER USER ${{ env.APP_USER }} CREATEDB;"
           PGPASSWORD="password" psql -U "postgres" -h "localhost" -p "5432" -c "${GRANT_QUERY}"
 
-          # Also grant connect and usage on the main 'newsletter' DB if tests connect as APP_USER to it
+          # Grant connect and usage on the newsletter DB
           GRANT_CONNECT_QUERY="GRANT CONNECT ON DATABASE ${{ env.APP_DB_NAME }} TO ${{ env.APP_USER }};"
-          PGPASSWORD="password" psql -U "postgres" -h "localhost" -p "5432" -d "${{ env.APP_DB_NAME }}" -c "${GRANT_CONNECT_QUERY}" || echo "DB ${{ env.APP_DB_NAME }} may not exist yet for grant, this is fine if init_db creates it."
+          PGPASSWORD="password" psql -U "postgres" -h "localhost" -p "5432" -d "${{ env.APP_DB_NAME }}" -c "${GRANT_CONNECT_QUERY}"
 
-      - name: Migrate database
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: ${{ env.APP_DB_NAME }}
-          DATABASE_URL: "postgres://postgres:password@localhost:5432/${{ env.APP_DB_NAME }}"
-        run: SKIP_DOCKER=true ./scripts/init_db.sh
-
+      # Now run tests - database is guaranteed to be ready
       - name: Run tests
         env:
           APP_DATABASE__USERNAME: ${{ env.APP_USER }}
@@ -93,6 +101,7 @@ jobs:
           APP_DATABASE__PORT: "5432"
         run: cargo test
       
+      # Check sqlx metadata consistency
       - name: Check that queries are fresh
         env:
           DATABASE_URL: "postgres://postgres:password@localhost:5432/${{ env.APP_DB_NAME }}"
@@ -142,7 +151,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
-          POSTGRES_DB: postgres
+          POSTGRES_DB: newsletter  # Create newsletter database directly
         ports:
           - 5432:5432
     steps:
@@ -157,10 +166,25 @@ jobs:
           --features ${{ env.SQLX_FEATURES }}
           --no-default-features
           --locked
-      - name: Create app user in Postgres
+      
+      # Wait for Postgres and run migrations for coverage job too
+      - name: Wait for Postgres to be ready
         run: |
           sudo apt-get install postgresql-client
+          until pg_isready -h localhost -p 5432 -U postgres; do
+            echo "Waiting for postgres..."
+            sleep 2
+          done
+        env:
+          PGPASSWORD: password
 
+      - name: Run Migrations
+        run: sqlx migrate run
+        env:
+          DATABASE_URL: "postgres://postgres:password@localhost:5432/${{ env.APP_DB_NAME }}"
+
+      - name: Create app user in Postgres
+        run: |
           # Create the application user
           CREATE_QUERY="CREATE USER ${APP_USER} WITH PASSWORD '${APP_USER_PWD}';"
           PGPASSWORD="password" psql -U "postgres" -h "localhost" -c "${CREATE_QUERY}"
@@ -168,10 +192,7 @@ jobs:
           # Grant create db privileges to the app user
           GRANT_QUERY="ALTER USER ${APP_USER} CREATEDB;"
           PGPASSWORD="password" psql -U "postgres" -h "localhost" -c "${GRANT_QUERY}"
-      - name: Migrate database
-        env:
-          DATABASE_URL: "postgres://postgres:password@localhost:5432/${{ env.APP_DB_NAME }}"
-        run: SKIP_DOCKER=true ./scripts/init_db.sh
+      
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
