@@ -4,5 +4,6 @@ database:
   require_ssl: true
 email_client:
   base_url: "https://api.sendgrid.com/v3"
-  sender_email: ""
-  authorisation_token: ""
+  sender_email: "placeholder@gmail.com"
+  authorisation_token: "placeholder1234"
+  timeout_milliseconds: 10000
