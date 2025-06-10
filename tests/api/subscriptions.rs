@@ -1,10 +1,20 @@
 // If tests/api/subscriptions.rs grows too unwieldy -> tests/api/subscriptions/helper.rs
 use crate::helpers::spawn_app;
+use wiremock::{
+    matchers::{method, path},
+    {Mock, ResponseTemplate},
+};
 
 #[tokio::test]
 async fn subscribe_returns_a_200_for_valid_form_data() {
     let app = spawn_app().await;
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    Mock::given(path("/v3/mail/send"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&app.email_server)
+        .await;
 
     let response = app.post_subscriptions(body.into()).await;
 
