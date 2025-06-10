@@ -2,6 +2,7 @@ use once_cell::sync::Lazy;
 use secrecy::ExposeSecret;
 use sqlx::{Connection, Executor, PgConnection, PgPool, postgres::PgConnectOptions};
 use uuid::Uuid;
+use wiremock::MockServer;
 use zero_to_prod::{
     configuration::{DatabaseSettings, get_configuration},
     startup::Application,
@@ -26,6 +27,7 @@ static TRACING: Lazy<()> = Lazy::new(|| {
 pub struct TestApp {
     pub address: String,
     pub db_pool: PgPool,
+    pub email_server: MockServer,
 }
 
 impl TestApp {
@@ -43,6 +45,7 @@ impl TestApp {
 pub async fn spawn_app() -> TestApp {
     Lazy::force(&TRACING);
 
+    let email_server = MockServer::start().await;
     // Modify configuration to ensure test isolation, no collisions
     let configuration = {
         let mut config = get_configuration().expect("Failed to read configuration.");
@@ -50,6 +53,7 @@ pub async fn spawn_app() -> TestApp {
         config.database.database_name = Uuid::new_v4().to_string();
         // Request a random OS-assigned port
         config.application.port = 0;
+        config.email_client.base_url = email_server.uri();
         config
     };
 
@@ -60,7 +64,11 @@ pub async fn spawn_app() -> TestApp {
     let address = format!("http://127.0.0.1:{}", application.port());
     let _ = tokio::spawn(application.run_until_stopped());
 
-    TestApp { address, db_pool }
+    TestApp {
+        address,
+        db_pool,
+        email_server,
+    }
 }
 
 async fn configure_database(config: &DatabaseSettings) -> PgPool {
