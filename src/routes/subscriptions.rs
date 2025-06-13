@@ -29,6 +29,19 @@ impl TryFrom<FormData> for NewSubscriber {
     }
 }
 
+#[derive(Debug)]
+pub enum SubscriptionError {
+    EmailAlreadyExists,
+    DatabaseError(sqlx::Error),
+    ValidationError(String),
+}
+
+impl From<sqlx::Error> for SubscriptionError {
+    fn from(err: sqlx::Error) -> Self {
+        SubscriptionError::DatabaseError(err)
+    }
+}
+
 #[tracing::instrument(
     name = "Adding a new subscriber",
     skip(form, pool, email_client, base_url),
