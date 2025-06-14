@@ -18,6 +18,9 @@ pub struct FormData {
     name: String,
 }
 
+#[derive(Debug)]
+pub struct StoreTokenError(sqlx::Error);
+
 impl TryFrom<FormData> for NewSubscriber {
     type Error = String;
 
@@ -29,16 +32,30 @@ impl TryFrom<FormData> for NewSubscriber {
     }
 }
 
-#[derive(Debug)]
-pub enum SubscriptionError {
-    EmailAlreadyExists,
-    DatabaseError(sqlx::Error),
-    ValidationError(String),
 }
 
-impl From<sqlx::Error> for SubscriptionError {
-    fn from(err: sqlx::Error) -> Self {
-        SubscriptionError::DatabaseError(err)
+    }
+}
+
+impl std::fmt::Display for StoreTokenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "A database error was encounters while \
+                trying to store a subscription token."
+        )
+    }
+}
+
+impl From<sqlx::Error> for StoreTokenError {
+    fn from(e: sqlx::Error) -> Self {
+        StoreTokenError(e)
+    }
+}
+
+impl std::error::Error for StoreTokenError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
     }
 }
 
