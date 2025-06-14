@@ -226,10 +226,8 @@ pub async fn send_confirmation_email(
 pub async fn insert_subscriber(
     transaction: &mut Transaction<'_, Postgres>,
     new_subscriber: &NewSubscriber,
-) -> Result<Uuid, SubscriptionError> {
-    if email_exists(transaction, new_subscriber.email.as_ref()).await? {
-        return Err(SubscriptionError::EmailAlreadyExists);
-    }
+) -> Result<Uuid, sqlx::Error> {
+    email_exists(transaction, new_subscriber.email.as_ref()).await?;
 
     let subscriber_id = Uuid::new_v4();
     sqlx::query!(
@@ -267,7 +265,11 @@ pub async fn email_exists(
         e
     })?;
 
-    Ok(result.exists.unwrap_or(false))
+    if result.exists.unwrap_or(false) {
+        Err(sqlx::Error::RowNotFound)
+    } else {
+        Ok(())
+    }
 }
 
 fn generate_subscription_token() -> String {
