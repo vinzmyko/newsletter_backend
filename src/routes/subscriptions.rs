@@ -1,9 +1,4 @@
-use crate::{
-    domain::{NewSubscriber, SubscriberEmail, SubscriberName},
-    email_client::EmailClient,
-    startup::ApplicationBaseUrl,
-};
-use actix_web::{HttpResponse, web};
+use actix_web::{HttpResponse, ResponseError, http::StatusCode, web};
 use chrono::Utc;
 use rand::{
     distributions::Alphanumeric,
@@ -11,6 +6,12 @@ use rand::{
 };
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
+
+use crate::{
+    domain::{NewSubscriber, SubscriberEmail, SubscriberName},
+    email_client::EmailClient,
+    startup::ApplicationBaseUrl,
+};
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
