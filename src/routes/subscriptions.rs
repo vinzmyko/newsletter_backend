@@ -175,7 +175,7 @@ pub async fn store_token(
     transaction: &mut Transaction<'_, Postgres>,
     subscriber_id: Uuid,
     subscription_token: &str,
-) -> Result<(), sqlx::Error> {
+) -> Result<(), StoreTokenError> {
     sqlx::query!(
         r#"INSERT INTO subscription_tokens (subscription_token, subscriber_id)
     VALUES ($1, $2)"#,
@@ -255,7 +255,7 @@ pub async fn insert_subscriber(
 pub async fn email_exists(
     transaction: &mut Transaction<'_, Postgres>,
     email: &str,
-) -> Result<bool, sqlx::Error> {
+) -> Result<(), sqlx::Error> {
     let result = sqlx::query!(
         r#"SELECT EXISTS(SELECT 1 FROM subscriptions WHERE email = $1)"#,
         email,
