@@ -61,3 +61,13 @@ async fn create_unconfirmed_subscriber(app: &TestApp) -> ConfirmationLinks {
 
     app.get_confirmation_links(email_request)
 }
+
+async fn create_confirmed_subscriber(app: &TestApp) {
+    let confirmation_link = create_unconfirmed_subscriber(app).await;
+    // Mimicing user clicking on the link
+    reqwest::get(confirmation_link.html)
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+}
