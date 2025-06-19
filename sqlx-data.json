@@ -18,6 +18,20 @@
     },
     "query": "\n        SELECT email\n        FROM subscriptions\n        WHERE status = 'confirmed'\n        "
   },
+  "9388e26e25063ca1ebacb3ce58c0fb0634cc9690df6bd801dbc596f8380f379c": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Text",
+          "Text"
+        ]
+      }
+    },
+    "query": "INSERT INTO users (user_id, username, password)\n    VALUES ($1, $2, $3)"
+  },
   "9ab6536d2bf619381573b3bf13507d53b2e9cf50051e51c803e916f25b51abd2": {
     "describe": {
       "columns": [
@@ -102,6 +116,51 @@
       }
     },
     "query": "SELECT subscriber_id FROM subscription_tokens WHERE subscription_token = $1"
+  },
+  "ba57c8d4c8f5ad22af089e6433b339dca8affac4d4f5070a449fa1cc16f9c4ab": {
+    "describe": {
+      "columns": [
+        {
+          "name": "username",
+          "ordinal": 0,
+          "type_info": "Text"
+        },
+        {
+          "name": "password",
+          "ordinal": 1,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT username, password FROM users LIMIT 1"
+  },
+  "df5e51c3cbb40ab0f1b52e123a54537961d7390f1edff007b9c12c23c8e3735f": {
+    "describe": {
+      "columns": [
+        {
+          "name": "user_id",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      }
+    },
+    "query": "\n        SELECT user_id\n        FROM users\n        WHERE username = $1 AND password = $2\n        "
   },
   "e6822c9e162eabc20338cc27d51a8e80578803ec1589c234d93c3919d14a96a6": {
     "describe": {
