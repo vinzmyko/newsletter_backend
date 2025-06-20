@@ -132,6 +132,7 @@ async fn get_confirmed_subscribers(
     Ok(confirmed_subscribers)
 }
 
+#[tracing::instrument(name = "Validate credentials", skip(credentials, pool))]
 async fn validate_credentials(
     credentials: Credentials,
     pool: &PgPool,
@@ -162,9 +163,13 @@ async fn validate_credentials(
         .context("Failed to parse hash in PHC string format.")
         .map_err(PublishError::UnexpectedError)?;
 
-    Argon2::default()
-        // Hashes the input password with the same params as the phc in the database
-        .verify_password(credentials.password.expose_secret().as_bytes(), &parsed_phc)
+    tracing::info_span!("Verify password hash")
+        // .in_scope() when thrid party crates don't have built in tracing instrumentation
+        .in_scope(|| {
+            Argon2::default()
+                // Hashes the input password with the same params as the phc in the database
+                .verify_password(credentials.password.expose_secret().as_bytes(), &parsed_phc)
+        })
         .context("Invalid password.")
         .map_err(PublishError::AuthError)?;
 
