@@ -137,43 +137,55 @@ async fn validate_credentials(
     credentials: Credentials,
     pool: &PgPool,
 ) -> Result<uuid::Uuid, PublishError> {
+    let (user_id, database_phc) = get_stored_credentials(&credentials.username, pool)
+        .await
+        .map_err(PublishError::UnexpectedError)?
+        // Handles the Ok(None) error
+        .ok_or_else(|| PublishError::AuthError(anyhow::anyhow!("Unknown username.")))?;
+
+    tokio::task::spawn_blocking(move || verify_password_hash(database_phc, credentials.password))
+        .await
+        .context("Failed to spawn blocking task.")
+        .map_err(PublishError::UnexpectedError)??;
+
+    Ok(user_id)
+}
+
+#[tracing::instrument(name = "Verify password hash", skip(database_phc, password_candidate))]
+fn verify_password_hash(
+    database_phc: Secret<String>,
+    password_candidate: Secret<String>,
+) -> Result<(), PublishError> {
+    let parsed_phc = PasswordHash::new(database_phc.expose_secret())
+        .context("Failed to parse hash in PHC string format.")
+        .map_err(PublishError::UnexpectedError)?;
+
+    Argon2::default()
+        // Hashes the input password with the same params as the phc in the database
+        .verify_password(password_candidate.expose_secret().as_bytes(), &parsed_phc)
+        .context("Invalid password.")
+        .map_err(PublishError::AuthError)
+}
+
+#[tracing::instrument(name = "Get stored credentials", skip(username, pool))]
+async fn get_stored_credentials(
+    username: &str,
+    pool: &PgPool,
+) -> Result<Option<(uuid::Uuid, Secret<String>)>, anyhow::Error> {
     let row: Option<_> = sqlx::query!(
         r#"
         SELECT user_id, password_hash
         FROM users
         WHERE username = $1
         "#,
-        credentials.username,
+        username,
     )
     .fetch_optional(pool)
     .await
-    .context("Failed to perform a query to retrieve stored credentials.")
-    .map_err(PublishError::UnexpectedError)?;
+    .context("Failed to perform a query to retrieve stored credentials.")?;
 
-    let (database_phc, user_id) = match row {
-        Some(row) => (row.password_hash, row.user_id),
-        None => {
-            return Err(PublishError::AuthError(anyhow::anyhow!(
-                "Unkonwn username."
-            )));
-        }
-    };
-
-    let parsed_phc = PasswordHash::new(&database_phc)
-        .context("Failed to parse hash in PHC string format.")
-        .map_err(PublishError::UnexpectedError)?;
-
-    tracing::info_span!("Verify password hash")
-        // .in_scope() when thrid party crates don't have built in tracing instrumentation
-        .in_scope(|| {
-            Argon2::default()
-                // Hashes the input password with the same params as the phc in the database
-                .verify_password(credentials.password.expose_secret().as_bytes(), &parsed_phc)
-        })
-        .context("Invalid password.")
-        .map_err(PublishError::AuthError)?;
-
-    Ok(user_id)
+    let row = row.map(|row| (row.user_id, Secret::new(row.password_hash)));
+    Ok(row)
 }
 
 fn basic_authentication(headers: &HeaderMap) -> Result<Credentials, anyhow::Error> {
