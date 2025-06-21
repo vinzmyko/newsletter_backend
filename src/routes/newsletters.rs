@@ -139,18 +139,29 @@ async fn validate_credentials(
     credentials: Credentials,
     pool: &PgPool,
 ) -> Result<uuid::Uuid, PublishError> {
-    let (user_id, database_phc) = get_stored_credentials(&credentials.username, pool)
-        .await
-        .map_err(PublishError::UnexpectedError)?
-        // Handles the Ok(None) error
-        .ok_or_else(|| PublishError::AuthError(anyhow::anyhow!("Unknown username.")))?;
+    let mut authenticated_user_id = None;
+    let mut phc_to_verify = Secret::new(
+        "argon2id%v=19$m=15000,t=2,p=1$\
+            gZiV/M1gPc22E1AH/Jh1Hw$\
+            CW0rkoo7oJBQ/iyh7uJ0L02aLefrHwTWllSAxT0zRno"
+            .to_string(),
+    );
 
-    spawn_blocking_with_tracing(move || verify_password_hash(database_phc, credentials.password))
+    if let Some((database_user_id, database_phc)) =
+        get_stored_credentials(&credentials.username, pool)
+            .await
+            .map_err(PublishError::UnexpectedError)?
+    {
+        authenticated_user_id = Some(database_user_id);
+        phc_to_verify = database_phc;
+    }
+    spawn_blocking_with_tracing(move || verify_password_hash(phc_to_verify, credentials.password))
         .await
         .context("Failed to spawn blocking task.")
         .map_err(PublishError::UnexpectedError)??;
 
-    Ok(user_id)
+    authenticated_user_id
+        .ok_or_else(|| PublishError::AuthError(anyhow::anyhow!("Unkonwn username.")))
 }
 
 #[tracing::instrument(name = "Verify password hash", skip(database_phc, password_candidate))]
