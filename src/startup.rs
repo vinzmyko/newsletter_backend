@@ -1,7 +1,7 @@
 use crate::{
     configuration::{DatabaseSettings, Settings},
     email_client::EmailClient,
-    routes::{confirm, health_check, home, publish_newsletter, subscribe},
+    routes::{confirm, health_check, home, login_form, publish_newsletter, subscribe},
 };
 use actix_web::{App, HttpServer, dev::Server, web, web::Data};
 use sqlx::{PgPool, postgres::PgPoolOptions};
