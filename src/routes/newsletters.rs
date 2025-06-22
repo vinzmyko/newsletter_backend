@@ -7,12 +7,13 @@ use actix_web::{
     web,
 };
 use anyhow::Context;
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
-use secrecy::{ExposeSecret, Secret};
+use secrecy::Secret;
 use sqlx::PgPool;
 
 use crate::{
-    domain::SubscriberEmail, email_client::EmailClient, telemetry::spawn_blocking_with_tracing,
+    authentication::{AuthError, Credentials, validate_credentials},
+    domain::SubscriberEmail,
+    email_client::EmailClient,
 };
 
 struct ConfirmedSubscriber {
@@ -37,11 +38,6 @@ pub struct BodyData {
 pub struct Content {
     html: String,
     text: String,
-}
-
-struct Credentials {
-    username: String,
-    password: Secret<String>,
 }
 
 impl ResponseError for PublishError {
@@ -75,7 +71,12 @@ pub async fn publish_newsletter(
 ) -> Result<HttpResponse, PublishError> {
     let credentials = basic_authentication(request.headers()).map_err(PublishError::AuthError)?;
     tracing::Span::current().record("username", tracing::field::display(&credentials.username));
-    let user_id = validate_credentials(credentials, &pool).await?;
+    let user_id = validate_credentials(credentials, &pool)
+        .await
+        .map_err(|e| match e {
+            AuthError::InvalidCredentials(_) => PublishError::AuthError(e.into()),
+            AuthError::UnexpectedError(_) => PublishError::UnexpectedError(e.into()),
+        })?;
     tracing::Span::current().record("user_id", tracing::field::display(&user_id));
     let subscribers = get_confirmed_subscribers(&pool).await?;
     for subscriber in subscribers {
@@ -132,73 +133,6 @@ async fn get_confirmed_subscribers(
         .collect();
 
     Ok(confirmed_subscribers)
-}
-
-#[tracing::instrument(name = "Validate credentials", skip(credentials, pool))]
-async fn validate_credentials(
-    credentials: Credentials,
-    pool: &PgPool,
-) -> Result<uuid::Uuid, PublishError> {
-    let mut authenticated_user_id = None;
-    let mut phc_to_verify = Secret::new(
-        "argon2id%v=19$m=15000,t=2,p=1$\
-            gZiV/M1gPc22E1AH/Jh1Hw$\
-            CW0rkoo7oJBQ/iyh7uJ0L02aLefrHwTWllSAxT0zRno"
-            .to_string(),
-    );
-
-    if let Some((database_user_id, database_phc)) =
-        get_stored_credentials(&credentials.username, pool)
-            .await
-            .map_err(PublishError::UnexpectedError)?
-    {
-        authenticated_user_id = Some(database_user_id);
-        phc_to_verify = database_phc;
-    }
-    spawn_blocking_with_tracing(move || verify_password_hash(phc_to_verify, credentials.password))
-        .await
-        .context("Failed to spawn blocking task.")
-        .map_err(PublishError::UnexpectedError)??;
-
-    authenticated_user_id
-        .ok_or_else(|| PublishError::AuthError(anyhow::anyhow!("Unkonwn username.")))
-}
-
-#[tracing::instrument(name = "Verify password hash", skip(database_phc, password_candidate))]
-fn verify_password_hash(
-    database_phc: Secret<String>,
-    password_candidate: Secret<String>,
-) -> Result<(), PublishError> {
-    let parsed_phc = PasswordHash::new(database_phc.expose_secret())
-        .context("Failed to parse hash in PHC string format.")
-        .map_err(PublishError::UnexpectedError)?;
-
-    Argon2::default()
-        // Hashes the input password with the same params as the phc in the database
-        .verify_password(password_candidate.expose_secret().as_bytes(), &parsed_phc)
-        .context("Invalid password.")
-        .map_err(PublishError::AuthError)
-}
-
-#[tracing::instrument(name = "Get stored credentials", skip(username, pool))]
-async fn get_stored_credentials(
-    username: &str,
-    pool: &PgPool,
-) -> Result<Option<(uuid::Uuid, Secret<String>)>, anyhow::Error> {
-    let row: Option<_> = sqlx::query!(
-        r#"
-        SELECT user_id, password_hash
-        FROM users
-        WHERE username = $1
-        "#,
-        username,
-    )
-    .fetch_optional(pool)
-    .await
-    .context("Failed to perform a query to retrieve stored credentials.")?;
-
-    let row = row.map(|row| (row.user_id, Secret::new(row.password_hash)));
-    Ok(row)
 }
 
 fn basic_authentication(headers: &HeaderMap) -> Result<Credentials, anyhow::Error> {
