@@ -23,6 +23,13 @@ pub enum LoginError {
 }
 
 impl ResponseError for LoginError {
+    fn error_response(&self) -> HttpResponse {
+        let encoded_error = urlencoding::Encoded::new(self.to_string());
+        HttpResponse::SeeOther()
+            .insert_header((LOCATION, format!("/login?error={}", encoded_error)))
+            .finish()
+    }
+
     fn status_code(&self) -> StatusCode {
         match self {
             LoginError::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
