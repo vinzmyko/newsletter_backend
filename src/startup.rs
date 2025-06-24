@@ -1,7 +1,8 @@
 use std::net::TcpListener;
 
-use actix_web::{App, HttpServer, dev::Server, web, web::Data};
-use secrecy::Secret;
+use actix_web::{App, HttpServer, cookie::Key, dev::Server, web, web::Data};
+use actix_web_flash_messages::{FlashMessagesFramework, storage::CookieMessageStore};
+use secrecy::{ExposeSecret, Secret};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use tracing_actix_web::TracingLogger;
 
@@ -57,7 +58,7 @@ impl Application {
             connection_pool,
             email_client,
             configuration.application.base_url,
-            HmacSecret(configuration.application.hmac_secret),
+            configuration.application.hmac_secret,
         )?;
 
         Ok(Self {
@@ -97,14 +98,22 @@ pub fn run(
     db_pool: PgPool,
     email_client: EmailClient,
     base_url: String,
-    hmac_secret: HmacSecret,
+    hmac_secret: Secret<String>,
 ) -> Result<Server, std::io::Error> {
     let db_pool = Data::new(db_pool);
     let email_client = Data::new(email_client);
     let base_url = Data::new(ApplicationBaseUrl(base_url));
+    // Storage backend - where flash messages are stored in cookies, how they are secured, and what
+    // format they use.
+    let message_store =
+        CookieMessageStore::builder(Key::from(hmac_secret.expose_secret().as_bytes())).build();
+    // Orchestrates the storage backend defined, provided api for sending and receiving messages,
+    // and handles the lifecycle of the flash messages.
+    let message_framework = FlashMessagesFramework::builder(message_store).build();
     let server = HttpServer::new(move || {
         App::new()
             .wrap(TracingLogger::default())
+            .wrap(message_framework.clone())
             .route("/health_check", web::get().to(health_check))
             .route("/subscriptions", web::post().to(subscribe))
             .route("/subscriptions/confirm", web::get().to(confirm))
