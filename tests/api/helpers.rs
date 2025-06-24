@@ -7,6 +7,7 @@ use secrecy::ExposeSecret;
 use sqlx::{Connection, Executor, PgConnection, PgPool, postgres::PgConnectOptions};
 use uuid::Uuid;
 use wiremock::MockServer;
+
 use zero_to_prod::{
     configuration::{DatabaseSettings, get_configuration},
     startup::Application,
@@ -39,6 +40,7 @@ pub struct TestApp {
     pub db_pool: PgPool,
     pub email_server: MockServer,
     pub test_user: TestUser,
+    pub api_client: reqwest::Client,
 }
 
 pub struct TestUser {
@@ -82,7 +84,7 @@ impl TestUser {
 
 impl TestApp {
     pub async fn post_subscriptions(&self, body: String) -> reqwest::Response {
-        reqwest::Client::new()
+        self.api_client
             .post(format!("{}/subscriptions", &self.address))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .body(body)
@@ -92,7 +94,7 @@ impl TestApp {
     }
 
     pub async fn post_newsletters(&self, body: serde_json::Value) -> reqwest::Response {
-        reqwest::Client::new()
+        self.api_client
             .post(format!("{}/newsletters", &self.address))
             .basic_auth(&self.test_user.username, Some(&self.test_user.password))
             .json(&body)
@@ -146,12 +148,20 @@ pub async fn spawn_app() -> TestApp {
     let application_port = application.port();
     tokio::spawn(application.run_until_stopped());
 
+    let client = reqwest::Client::builder()
+        // Do not follow redirects automatically for 302/302 responses
+        .redirect(reqwest::redirect::Policy::none())
+        .cookie_store(true)
+        .build()
+        .unwrap();
+
     let test_app = TestApp {
         address: format!("http://127.0.0.1:{}", application_port),
         port: application_port,
         db_pool,
         email_server,
         test_user: TestUser::generate(),
+        api_client: client,
     };
     test_app.test_user.store(&test_app.db_pool).await;
     test_app
