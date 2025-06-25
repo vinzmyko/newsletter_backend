@@ -5,7 +5,7 @@ use zero_to_prod::{
 };
 
 #[tokio::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> anyhow::Result<()> {
     // Subscriber receives all span and event data and decides how to process it for output
     let subscriber = get_subscriber("zero_to_prod".into(), "info".into(), std::io::stdout);
     init_subscriber(subscriber);
