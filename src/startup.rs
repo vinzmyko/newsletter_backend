@@ -119,7 +119,10 @@ pub async fn run(
         App::new()
             .wrap(TracingLogger::default())
             .wrap(message_framework.clone())
-            .wrap(SessionMiddleware::new(redis_store.clone(), secret_key.clone()))
+            .wrap(SessionMiddleware::new(
+                redis_store.clone(),
+                secret_key.clone(),
+            ))
             .route("/health_check", web::get().to(health_check))
             .route("/subscriptions", web::post().to(subscribe))
             .route("/subscriptions/confirm", web::get().to(confirm))
