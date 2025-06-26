@@ -14,6 +14,26 @@
     },
     "query": "INSERT INTO users (user_id, username, password_hash)\n            VALUES ($1, $2, $3)"
   },
+  "33b11051e779866db9aeb86d28a59db07a94323ffdc59a5a2c1da694ebe9a65f": {
+    "describe": {
+      "columns": [
+        {
+          "name": "username",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      }
+    },
+    "query": "\n        SELECT username\n        FROM users\n        WHERE user_id = $1\n        "
+  },
   "7b57e2776a245ba1602f638121550485e2219a6ccaaa62b5ec3e4683e33a3b5f": {
     "describe": {
       "columns": [
