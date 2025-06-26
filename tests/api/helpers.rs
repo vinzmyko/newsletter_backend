@@ -83,6 +83,17 @@ impl TestUser {
 }
 
 impl TestApp {
+    pub async fn get_admin_dashboard(&self) -> String {
+        self.api_client
+            .get(format!("{}/admin/dashboard", &self.address))
+            .send()
+            .await
+            .expect("Failed to exectute request.")
+            .text()
+            .await
+            .unwrap()
+    }
+
     pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response
     where
         Body: serde::Serialize,
