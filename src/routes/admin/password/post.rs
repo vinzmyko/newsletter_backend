@@ -10,11 +10,26 @@ use crate::{
     utils::{e500, see_other},
 };
 
+#[derive(Debug)]
+struct ValidNewPassword(String);
+
 #[derive(serde::Deserialize)]
 pub struct FormData {
     current_password: Secret<String>,
     new_password: Secret<String>,
     new_password_check: Secret<String>,
+}
+
+impl ValidNewPassword {
+    pub fn parse(s: &str) -> Result<ValidNewPassword, String> {
+        if s.len() < 12 || s.len() > 128 {
+            return Err(format!(
+                "Password must be between 12 and 128 characters, got {}",
+                s.len()
+            ));
+        }
+        Ok(ValidNewPassword(s.to_string()))
+    }
 }
 
 pub async fn change_password(
