@@ -85,3 +85,27 @@ pub async fn change_password(
     }
     todo!()
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::routes::admin::password::post::ValidNewPassword;
+    use claim::{assert_err, assert_ok};
+
+    #[test]
+    fn new_password_less_than_12_is_rejected() {
+        let password_less_then_12 = "a".repeat(6);
+        assert_err!(ValidNewPassword::parse(password_less_then_12.as_ref()));
+    }
+
+    #[test]
+    fn new_password_greater_than_128_is_rejected() {
+        let password_greater_than_128 = "a".repeat(129);
+        assert_err!(ValidNewPassword::parse(password_greater_than_128.as_ref()));
+    }
+
+    #[test]
+    fn new_password_between_12_and_128_is_accepted() {
+        let valid_password = "a".repeat(14);
+        assert_ok!(ValidNewPassword::parse(valid_password.as_ref()));
+    }
+}
