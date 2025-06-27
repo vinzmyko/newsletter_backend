@@ -1,9 +1,4 @@
-use actix_web::{
-    HttpResponse, ResponseError,
-    error::InternalError,
-    http::{StatusCode, header::LOCATION},
-    web,
-};
+use actix_web::{HttpResponse, ResponseError, error::InternalError, http::StatusCode, web};
 use actix_web_flash_messages::FlashMessage;
 use secrecy::Secret;
 use sqlx::PgPool;
