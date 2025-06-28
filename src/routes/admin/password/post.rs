@@ -11,7 +11,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-struct ValidNewPassword(String);
+pub struct ValidNewPassword(String);
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
@@ -29,6 +29,10 @@ impl ValidNewPassword {
             ));
         }
         Ok(ValidNewPassword(s.to_string()))
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
     }
 }
 
