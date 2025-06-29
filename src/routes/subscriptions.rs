@@ -15,7 +15,7 @@ use crate::{
 };
 
 #[derive(serde::Deserialize)]
-pub struct FormData {
+pub struct SubscriptionsFormData {
     email: String,
     name: String,
 }
@@ -28,10 +28,10 @@ pub enum SubscribeError {
     UnexpectedError(#[from] anyhow::Error),
 }
 
-impl TryFrom<FormData> for NewSubscriber {
+impl TryFrom<SubscriptionsFormData> for NewSubscriber {
     type Error = String;
 
-    fn try_from(value: FormData) -> Result<Self, Self::Error> {
+    fn try_from(value: SubscriptionsFormData) -> Result<Self, Self::Error> {
         let name = SubscriberName::parse(value.name)?;
         let email = SubscriberEmail::parse(value.email)?;
 
@@ -63,7 +63,7 @@ impl From<String> for SubscribeError {
     )
 )]
 pub async fn subscribe(
-    form: web::Form<FormData>,
+    form: web::Form<SubscriptionsFormData>,
     pool: web::Data<PgPool>,
     email_client: web::Data<EmailClient>,
     base_url: web::Data<ApplicationBaseUrl>,
