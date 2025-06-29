@@ -169,6 +169,17 @@ impl TestApp {
             .send()
             .await
             .expect("Failed to execute request.")
+
+    pub async fn get_newsletter(&self) -> reqwest::Response {
+        self.api_client
+            .get(format!("{}/admin/newsletter", &self.address))
+            .send()
+            .await
+            .expect("Failed to exectute request.")
+    }
+
+    pub async fn get_newsletter_html(&self) -> String {
+        self.get_newsletter().await.text().await.unwrap()
     }
 
     pub fn get_confirmation_links(&self, email_request: &wiremock::Request) -> ConfirmationLinks {
