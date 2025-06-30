@@ -4,7 +4,11 @@ use anyhow::Context;
 use sqlx::PgPool;
 
 use crate::{
-    authentication::UserId, domain::SubscriberEmail, email_client::EmailClient, utils::e500,
+    authentication::UserId,
+    domain::SubscriberEmail,
+    email_client::EmailClient,
+    idempotency::{IdempotencyKey, get_saved_response},
+    utils::{e400, e500, see_other},
 };
 
 struct ConfirmedSubscriber {
@@ -16,6 +20,7 @@ pub struct NewsletterFormData {
     title: String,
     text_content: String,
     html_content: String,
+    idempotency_key: String,
 }
 
 #[tracing::instrument(
@@ -30,18 +35,26 @@ pub async fn publish_newsletter(
     user_id: web::ReqData<UserId>,
 ) -> Result<HttpResponse, actix_web::Error> {
     let user_id = user_id.into_inner();
+    let NewsletterFormData {
+        title,
+        text_content,
+        html_content,
+        idempotency_key,
+    } = form.0;
+    let idempotency_key: IdempotencyKey = idempotency_key.try_into().map_err(e400)?;
+    if let Some(saved_response) = get_saved_response(&pool, &idempotency_key, *user_id)
+        .await
+        .map_err(e500)?
+    {
+        return Ok(saved_response);
+    }
     tracing::Span::current().record("user_id", tracing::field::display(&user_id));
     let subscribers = get_confirmed_subscribers(&pool).await.map_err(e500)?;
     for subscriber in subscribers {
         match subscriber {
             Ok(subscriber) => {
                 email_client
-                    .send_email(
-                        &subscriber.email,
-                        &form.title,
-                        &form.html_content,
-                        &form.text_content,
-                    )
+                    .send_email(&subscriber.email, &title, &html_content, &text_content)
                     .await
                     // .with_context() is lazy, only takes a closure and only called in case of error
                     // .context() would allocate the string everytime we send an email out, in this case
@@ -54,14 +67,14 @@ pub async fn publish_newsletter(
             Err(error) => {
                 tracing::warn!(
                     error.cause_chain = ?error,
-                    "Skipping a confirmed subscirber. \
+                    "Skipping a confirmed subscriber. \
                         Their stored contact details are invalid",
                 );
             }
         }
     }
     FlashMessage::info("The newsletter issue has been published!").send();
-    Ok(HttpResponse::Ok().finish())
+    Ok(see_other("/admin/newsletter"))
 }
 
 #[tracing::instrument(name = "Get confirmed subscribers", skip(pool))]
