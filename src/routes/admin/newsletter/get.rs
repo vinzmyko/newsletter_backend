@@ -21,32 +21,42 @@ pub async fn send_newsletter_form(
         <html lang="en">
             <head>
                 <meta http-equiv="content-type" content="text/html; charset=utf-8">
-                <title>Send Newsletter</title>
+                <title>Publish Newsletter Issue</title>
             </head>
             <body>
                 {msg_html}
                 <form action="/admin/newsletter" method="post">
-                    <label>Newsletter Title
+                    <label>Newsletter Title:
                         <br>
                         <input
                             type="text"
                             size="100"
-                            placeholder="Enter newsletter title"
-                            name="newsletter_title"
+                            placeholder="Enter the issue title"
+                            name="title"
                         >
                     </label>
                     <br>
-                    <label>Newsletter Body
+                    <label>Plain Text Content:
                         <br>
                         <textarea
-                            name="newsletter_body"
+                            name="text_content"
                             placeholder="Enter newsletter body"
                             rows="10"
                             cols="135"
                             wrap="soft"
                         ></textarea>
                     </label>
-                    <button type="submit">Send newsletter</button>
+                    <label>HTML Content:
+                        <br>
+                        <textarea
+                            name="html_content"
+                            placeholder="Enter newsletter body"
+                            rows="10"
+                            cols="135"
+                            wrap="soft"
+                        ></textarea>
+                    </label>
+                    <button type="submit">Publish</button>
                 </form>
                 <br>
                 <p><a href="/admin/dashboard">&lt;- Back</a></p>
