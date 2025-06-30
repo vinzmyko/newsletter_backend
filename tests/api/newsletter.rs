@@ -60,11 +60,12 @@ async fn newsletters_are_not_delievered_to_unconfirmed_subscribers() {
     let newsletter_request_body = serde_json::json!({
         "title": "Newsletter title",
         "text_content": "Newsletter body as plain text",
-        "html_content": "<p>Newsletter body as HTML</p>"
+        "html_content": "<p>Newsletter body as HTML</p>",
+        "idempotency_key": uuid::Uuid::new_v4().to_string()
     });
 
     let response = app.post_newsletter(&newsletter_request_body).await;
-    assert_eq!(response.status().as_u16(), 200);
+    assert_eq!(response.status().as_u16(), 303);
     let html_page = app.get_newsletter_html().await;
     assert!(html_page.contains(r#"<p><i>The newsletter issue has been published!</i></p>"#));
 }
@@ -94,10 +95,11 @@ async fn newsletters_are_delivered_to_confirmed_subscribers() {
         "title": "Newsletter title",
         "text_content": "Newsletter body as plain text",
         "html_content": "<p>Newsletter body as HTML</p>",
+        "idempotency_key": uuid::Uuid::new_v4().to_string(),
     });
 
     let response = app.post_newsletter(&newsletter_request_body).await;
-    assert_eq!(response.status().as_u16(), 200);
+    assert_eq!(response.status().as_u16(), 303);
     let html_page = app.get_newsletter_html().await;
     assert!(html_page.contains(r#"<p><i>The newsletter issue has been published!</i></p>"#));
 }
