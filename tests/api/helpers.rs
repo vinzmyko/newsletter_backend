@@ -80,6 +80,14 @@ impl TestUser {
         .await
         .expect("Failed to store test user.");
     }
+
+    pub async fn login(&self, app: &TestApp) {
+        app.post_login(&serde_json::json!({
+            "username": &self.username,
+            "password": &self.password,
+        }))
+        .await;
+    }
 }
 
 impl TestApp {
