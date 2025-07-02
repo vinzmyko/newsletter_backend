@@ -125,6 +125,7 @@ pub async fn save_response(
     )
     .execute(&mut transaction)
     .await?;
+    transaction.commit().await?;
 
     let http_response = response_head.set_body(body).map_into_boxed_body();
     Ok(http_response)
