@@ -79,7 +79,7 @@ pub async fn publish_newsletter(
     }
     success_message().send();
     let response = see_other("/admin/newsletter");
-    let response = save_response(transaction, &idempotency_key, *user_id, response)
+    let response = save_response(*transaction, &idempotency_key, *user_id, response)
         .await
         .map_err(e500)?;
     Ok(response)
