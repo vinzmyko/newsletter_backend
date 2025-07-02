@@ -7,7 +7,7 @@ use crate::{
     authentication::UserId,
     domain::SubscriberEmail,
     email_client::EmailClient,
-    idempotency::{IdempotencyKey, get_saved_response},
+    idempotency::{IdempotencyKey, NextAction, save_response, try_processing},
     utils::{e400, e500, see_other},
 };
 
@@ -42,12 +42,16 @@ pub async fn publish_newsletter(
         idempotency_key,
     } = form.0;
     let idempotency_key: IdempotencyKey = idempotency_key.try_into().map_err(e400)?;
-    if let Some(saved_response) = get_saved_response(&pool, &idempotency_key, *user_id)
+    let transaction = match try_processing(&pool, &idempotency_key, *user_id)
         .await
         .map_err(e500)?
     {
-        return Ok(saved_response);
-    }
+        NextAction::StartProcessing(t) => t,
+        NextAction::ReturnSavedResponse(saved_response) => {
+            success_message().send();
+            return Ok(saved_response);
+        }
+    };
     tracing::Span::current().record("user_id", tracing::field::display(&user_id));
     let subscribers = get_confirmed_subscribers(&pool).await.map_err(e500)?;
     for subscriber in subscribers {
@@ -73,8 +77,12 @@ pub async fn publish_newsletter(
             }
         }
     }
-    FlashMessage::info("The newsletter issue has been published!").send();
-    Ok(see_other("/admin/newsletter"))
+    success_message().send();
+    let response = see_other("/admin/newsletter");
+    let response = save_response(transaction, &idempotency_key, *user_id, response)
+        .await
+        .map_err(e500)?;
+    Ok(response)
 }
 
 #[tracing::instrument(name = "Get confirmed subscribers", skip(pool))]
@@ -101,4 +109,8 @@ async fn get_confirmed_subscribers(
         .collect();
 
     Ok(confirmed_subscribers)
+}
+
+fn success_message() -> FlashMessage {
+    FlashMessage::info("The newsletter issue has been published!")
 }
