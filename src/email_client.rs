@@ -4,14 +4,14 @@ use secrecy::{ExposeSecret, Secret};
 
 pub struct EmailClient {
     http_client: Client,
-    base_url: reqwest::Url,
+    base_url: String,
     sender: SubscriberEmail,
     authorisation_token: Secret<String>,
 }
 
 impl EmailClient {
     pub fn new(
-        base_url: reqwest::Url,
+        base_url: String,
         sender: SubscriberEmail,
         authorisation_token: Secret<String>,
         timeout: std::time::Duration,
@@ -33,10 +33,7 @@ impl EmailClient {
         html_content: &str,
         text_content: &str,
     ) -> Result<(), reqwest::Error> {
-        let url = self
-            .base_url
-            .join("v3/mail/send")
-            .expect("Failed to parse URL");
+        let url = format!("{}/v3/mail/send", self.base_url);
         let request_body = SendEmailRequest {
             from: self.sender.as_ref(),
             to: recipient.as_ref(),
@@ -118,7 +115,7 @@ mod tests {
         SubscriberEmail::parse(SafeEmail().fake()).unwrap()
     }
 
-    fn email_client(base_url: reqwest::Url) -> EmailClient {
+    fn email_client(base_url: String) -> EmailClient {
         EmailClient::new(
             base_url,
             email(),
