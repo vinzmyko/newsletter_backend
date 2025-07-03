@@ -10,6 +10,8 @@ use wiremock::MockServer;
 
 use zero_to_prod::{
     configuration::{DatabaseSettings, get_configuration},
+    email_client::EmailClient,
+    issue_delivery_worker::{ExecutionOutcome, try_execute_task},
     startup::Application,
     telemetry::{get_subscriber, init_subscriber},
 };
@@ -41,6 +43,7 @@ pub struct TestApp {
     pub email_server: MockServer,
     pub test_user: TestUser,
     pub api_client: reqwest::Client,
+    pub email_client: EmailClient,
 }
 
 pub struct TestUser {
@@ -91,6 +94,18 @@ impl TestUser {
 }
 
 impl TestApp {
+    pub async fn dispatch_all_pending_emails(&self) {
+        loop {
+            if let ExecutionOutcome::EmptyQueue =
+                try_execute_task(&self.db_pool, &self.email_client)
+                    .await
+                    .unwrap()
+            {
+                break;
+            }
+        }
+    }
+
     pub async fn post_logout(&self) -> reqwest::Response {
         self.api_client
             .post(format!("{}/admin/logout", &self.address))
@@ -252,6 +267,7 @@ pub async fn spawn_app() -> TestApp {
         email_server,
         test_user: TestUser::generate(),
         api_client: client,
+        email_client: configuration.email_client.client(),
     };
     test_app.test_user.store(&test_app.db_pool).await;
     test_app
