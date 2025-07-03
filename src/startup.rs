@@ -31,21 +31,7 @@ impl Application {
         configuration: Settings,
         connection_pool: PgPool,
     ) -> Result<Self, anyhow::Error> {
-        let sender_email = configuration
-            .email_client
-            .sender()
-            .expect("Invalid sender email address.");
-        let timeout = configuration.email_client.timeout();
-        let email_client = EmailClient::new(
-            configuration
-                .email_client
-                .base_url
-                .parse()
-                .expect("Invalid base URL in configuration."),
-            sender_email,
-            configuration.email_client.authorisation_token,
-            timeout,
-        );
+        let email_client = configuration.email_client.client();
 
         let requested_port = if configuration.application.port == 0 {
             0
