@@ -57,3 +57,4 @@ quickcheck_macros = "0.9.1"
 tokio = { version = "1", features = ["rt", "macros"] }
 wiremock = "0.5"
 linkify = "0.8"
+serde_urlencoded = "0.7.1"
